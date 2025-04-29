@@ -43,15 +43,25 @@ namespace net.nekobako.BlinkSuppressor.Editor
 
                 var blinkBlendShapeIndex = shapes[0];
                 var blinkBlendShape = blendShapes[blinkBlendShapeIndex];
-                var blinkBlendShapeAffectionsPerVertex = new bool[vertices.Length];
-                var blinkBlendShapeAffectionsPerPrimitive = new bool[primitives.Length];
+
+                // 瞬きブレンドシェイプで動く頂点
+                //  → 瞬き許可時に表示するものと、瞬き不許可時に表示するものの 2 個に増やす
+                // 瞬きブレンドシェイプで動かないが、瞬きブレンドシェイプで動く頂点と同じプリミティブに含まれる頂点
+                //  → 瞬き許可時に表示するものと、瞬き不許可時に表示するものと、無関係のプリミティブを維持するためのものの 3 個に増やす
+                // 瞬きブレンドシェイプで動く頂点を含むプリミティブ
+                //  → 瞬き許可時に表示するものと、瞬き不許可時に表示するものの 2 個に増やす
+                var newVertexCounts = new int[vertices.Length];
+                var newPrimitiveCounts = new int[primitives.Length];
                 for (var i = 0; i < blinkBlendShape.FrameCount; i++)
                 {
                     var blinkBlendShapeFrame = blendShapeFrames[blinkBlendShape.FrameIndex + i];
                     for (var j = 0; j < blinkBlendShapeFrame.DeltaCount; j++)
                     {
                         var blinkBlendShapeDelta = blendShapeDeltas[blinkBlendShapeFrame.DeltaIndex + j];
-                        blinkBlendShapeAffectionsPerVertex[j] |= blinkBlendShapeDelta.Position.sqrMagnitude >= component.BlendShapeThreshold * component.BlendShapeThreshold;
+                        if (newVertexCounts[j] != 2)
+                        {
+                            newVertexCounts[j] = blinkBlendShapeDelta.Position.sqrMagnitude >= component.BlendShapeThreshold * component.BlendShapeThreshold ? 2 : 1;
+                        }
                     }
                 }
                 for (var i = 0; i < subMeshes.Length; i++)
@@ -60,11 +70,33 @@ namespace net.nekobako.BlinkSuppressor.Editor
                     for (var j = 0; j < subMesh.PrimitiveCount; j++)
                     {
                         var primitive = primitives[subMesh.PrimitiveIndex + j];
-                        blinkBlendShapeAffectionsPerPrimitive[subMesh.PrimitiveIndex + j] =
-                            subMesh.TopologySize > 0 && blinkBlendShapeAffectionsPerVertex[primitive.Index0] ||
-                            subMesh.TopologySize > 1 && blinkBlendShapeAffectionsPerVertex[primitive.Index1] ||
-                            subMesh.TopologySize > 2 && blinkBlendShapeAffectionsPerVertex[primitive.Index2] ||
-                            subMesh.TopologySize > 3 && blinkBlendShapeAffectionsPerVertex[primitive.Index3];
+                        if (subMesh.TopologySize > 0 && newVertexCounts[primitive.Index0] == 2 ||
+                            subMesh.TopologySize > 1 && newVertexCounts[primitive.Index1] == 2 ||
+                            subMesh.TopologySize > 2 && newVertexCounts[primitive.Index2] == 2 ||
+                            subMesh.TopologySize > 3 && newVertexCounts[primitive.Index3] == 2)
+                        {
+                            if (subMesh.TopologySize > 0 && newVertexCounts[primitive.Index0] == 1)
+                            {
+                                newVertexCounts[primitive.Index0] = 3;
+                            }
+                            if (subMesh.TopologySize > 1 && newVertexCounts[primitive.Index1] == 1)
+                            {
+                                newVertexCounts[primitive.Index1] = 3;
+                            }
+                            if (subMesh.TopologySize > 2 && newVertexCounts[primitive.Index2] == 1)
+                            {
+                                newVertexCounts[primitive.Index2] = 3;
+                            }
+                            if (subMesh.TopologySize > 3 && newVertexCounts[primitive.Index3] == 1)
+                            {
+                                newVertexCounts[primitive.Index3] = 3;
+                            }
+                            newPrimitiveCounts[subMesh.PrimitiveIndex + j] = 2;
+                        }
+                        else
+                        {
+                            newPrimitiveCounts[subMesh.PrimitiveIndex + j] = 1;
+                        }
                     }
                 }
 
@@ -74,7 +106,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 for (var i = 0; i < vertices.Length; i++)
                 {
                     vertexIndexMap[i] = newVertexIndex;
-                    newVertexIndex += blinkBlendShapeAffectionsPerVertex[i] ? 2 : 1;
+                    newVertexIndex += newVertexCounts[i];
                 }
 
                 var newVertices = new NativeArray<MeshData.Vertex>(newVertexIndex, Allocator.Temp);
@@ -84,14 +116,8 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 for (var i = 0; i < vertices.Length; i++)
                 {
                     var vertex = vertices[i];
-                    vertex.BoneWeightIndex = newBoneWeightIndex;
-                    newVerticesSpan[newVertexIndex] = vertex;
-                    newVertexIndex++;
-                    newBoneWeightIndex += vertex.BoneWeightCount;
-
-                    if (blinkBlendShapeAffectionsPerVertex[i])
+                    for (var j = 0; j < newVertexCounts[i]; j++)
                     {
-                        vertex = vertices[i];
                         vertex.BoneWeightIndex = newBoneWeightIndex;
                         newVerticesSpan[newVertexIndex] = vertex;
                         newVertexIndex++;
@@ -105,12 +131,8 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 for (var i = 0; i < vertices.Length; i++)
                 {
                     var vertex = vertices[i];
-                    boneWeights.Slice(vertex.BoneWeightIndex, vertex.BoneWeightCount).CopyTo(newBoneWeightsSpan[newBoneWeightIndex..]);
-                    newBoneWeightIndex += vertex.BoneWeightCount;
-
-                    if (blinkBlendShapeAffectionsPerVertex[i])
+                    for (var j = 0; j < newVertexCounts[i]; j++)
                     {
-                        vertex = vertices[i];
                         boneWeights.Slice(vertex.BoneWeightIndex, vertex.BoneWeightCount).CopyTo(newBoneWeightsSpan[newBoneWeightIndex..]);
                         newBoneWeightIndex += vertex.BoneWeightCount;
                     }
@@ -126,7 +148,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
                     var newPrimitiveCount = 0;
                     for (var j = 0; j < subMesh.PrimitiveCount; j++)
                     {
-                        newPrimitiveCount += blinkBlendShapeAffectionsPerPrimitive[subMesh.PrimitiveIndex + j] ? 2 : 1;
+                        newPrimitiveCount += newPrimitiveCounts[subMesh.PrimitiveIndex + j];
                     }
                     subMesh.PrimitiveIndex = newPrimitiveIndex;
                     subMesh.PrimitiveCount = newPrimitiveCount;
@@ -144,20 +166,27 @@ namespace net.nekobako.BlinkSuppressor.Editor
                     for (var j = 0; j < subMesh.PrimitiveCount; j++)
                     {
                         var primitive = primitives[subMesh.PrimitiveIndex + j];
-                        primitive.Index0 = vertexIndexMap[primitive.Index0];
-                        primitive.Index1 = vertexIndexMap[primitive.Index1];
-                        primitive.Index2 = vertexIndexMap[primitive.Index2];
-                        primitive.Index3 = vertexIndexMap[primitive.Index3];
-                        newPrimitivesSpan[newPrimitiveIndex] = primitive;
-                        newPrimitiveIndex++;
-
-                        if (blinkBlendShapeAffectionsPerPrimitive[subMesh.PrimitiveIndex + j])
+                        if (newPrimitiveCounts[subMesh.PrimitiveIndex + j] == 1)
                         {
-                            primitive = primitives[subMesh.PrimitiveIndex + j];
-                            primitive.Index0 = vertexIndexMap[primitive.Index0] + (blinkBlendShapeAffectionsPerVertex[primitive.Index0] ? 1 : 0);
-                            primitive.Index1 = vertexIndexMap[primitive.Index1] + (blinkBlendShapeAffectionsPerVertex[primitive.Index1] ? 1 : 0);
-                            primitive.Index2 = vertexIndexMap[primitive.Index2] + (blinkBlendShapeAffectionsPerVertex[primitive.Index2] ? 1 : 0);
-                            primitive.Index3 = vertexIndexMap[primitive.Index3] + (blinkBlendShapeAffectionsPerVertex[primitive.Index3] ? 1 : 0);
+                            primitive.Index0 = vertexIndexMap[primitive.Index0] + (newVertexCounts[primitive.Index0] == 3 ? 2 : 0);
+                            primitive.Index1 = vertexIndexMap[primitive.Index1] + (newVertexCounts[primitive.Index1] == 3 ? 2 : 0);
+                            primitive.Index2 = vertexIndexMap[primitive.Index2] + (newVertexCounts[primitive.Index2] == 3 ? 2 : 0);
+                            primitive.Index3 = vertexIndexMap[primitive.Index3] + (newVertexCounts[primitive.Index3] == 3 ? 2 : 0);
+                            newPrimitivesSpan[newPrimitiveIndex] = primitive;
+                            newPrimitiveIndex++;
+                        }
+                        if (newPrimitiveCounts[subMesh.PrimitiveIndex + j] == 2)
+                        {
+                            primitive.Index0 = vertexIndexMap[primitive.Index0];
+                            primitive.Index1 = vertexIndexMap[primitive.Index1];
+                            primitive.Index2 = vertexIndexMap[primitive.Index2];
+                            primitive.Index3 = vertexIndexMap[primitive.Index3];
+                            newPrimitivesSpan[newPrimitiveIndex] = primitive;
+                            newPrimitiveIndex++;
+                            primitive.Index0++;
+                            primitive.Index1++;
+                            primitive.Index2++;
+                            primitive.Index3++;
                             newPrimitivesSpan[newPrimitiveIndex] = primitive;
                             newPrimitiveIndex++;
                         }
@@ -225,34 +254,31 @@ namespace net.nekobako.BlinkSuppressor.Editor
                         for (var k = 0; k < blendShapeFrame.DeltaCount; k++)
                         {
                             var blendShapeDelta = blendShapeDeltas[blendShapeFrame.DeltaIndex + k];
-                            newBlendShapeDeltasSpan[newBlendShapeDeltaIndex] = blendShapeDelta;
-                            newBlendShapeDeltaIndex++;
-
-                            if (blinkBlendShapeAffectionsPerVertex[k])
+                            for (var l = 0; l < newVertexCounts[k]; l++)
                             {
-                                blendShapeDelta = blendShapeDeltas[blendShapeFrame.DeltaIndex + k];
-                                newBlendShapeDeltasSpan[newBlendShapeDeltaIndex] = i == blinkBlendShapeIndex ? default : blendShapeDelta;
+                                newBlendShapeDeltasSpan[newBlendShapeDeltaIndex] = i == blinkBlendShapeIndex && l == 1 ? default : blendShapeDelta;
                                 newBlendShapeDeltaIndex++;
                             }
                         }
                     }
                 }
-                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, blinkBlendShapeAffectionsPerVertex, Vector3.zero, Vector3.positiveInfinity);
-                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, blinkBlendShapeAffectionsPerVertex, Vector3.positiveInfinity, Vector3.zero);
-                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, blinkBlendShapeAffectionsPerVertex, Vector3.positiveInfinity, Vector3.zero);
+                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, newVertices, newVertexCounts, component.ShrinkPosition, false, true);
+                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, newVertices, newVertexCounts, component.ShrinkPosition, true, false);
+                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, newVertices, newVertexCounts, component.ShrinkPosition, true, false);
 
-                static void AddBlendShapeDelta(Span<MeshData.BlendShapeDelta> blendShapeDeltas, ref int blendShapeDeltaIndex, bool[] blinkBlendShapeAffectionsPerVertex, Vector3 positionForAffectedVertex, Vector3 positionForSuppressedVertex)
+                static void AddBlendShapeDelta(Span<MeshData.BlendShapeDelta> blendShapeDeltas, ref int blendShapeDeltaIndex, Span<MeshData.Vertex> vertices, int[] vertexCounts, Vector3 shrinkPosition, bool shrinkAffectedVertex, bool shrinkSuppressedVertex)
                 {
-                    foreach (var blinkBlendShapeAffection in blinkBlendShapeAffectionsPerVertex)
+                    var blendShapeDeltaOffset = blendShapeDeltaIndex;
+                    foreach (var vertexCount in vertexCounts)
                     {
-                        if (blinkBlendShapeAffection)
+                        if (vertexCount != 1)
                         {
-                            blendShapeDeltas[blendShapeDeltaIndex] = new() { Position = positionForAffectedVertex };
+                            blendShapeDeltas[blendShapeDeltaIndex] = shrinkAffectedVertex ? new() { Position = shrinkPosition - vertices[blendShapeDeltaIndex - blendShapeDeltaOffset].Position } : default;
                             blendShapeDeltaIndex++;
-                            blendShapeDeltas[blendShapeDeltaIndex] = new() { Position = positionForSuppressedVertex };
+                            blendShapeDeltas[blendShapeDeltaIndex] = shrinkSuppressedVertex ? new() { Position = shrinkPosition - vertices[blendShapeDeltaIndex - blendShapeDeltaOffset].Position } : default;
                             blendShapeDeltaIndex++;
                         }
-                        else
+                        if (vertexCount != 2)
                         {
                             blendShapeDeltas[blendShapeDeltaIndex] = default;
                             blendShapeDeltaIndex++;
