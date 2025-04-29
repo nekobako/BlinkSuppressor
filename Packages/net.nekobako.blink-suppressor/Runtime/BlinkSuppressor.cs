@@ -13,6 +13,7 @@ namespace net.nekobako.BlinkSuppressor.Runtime
 
         [Header("Settings")]
         public float BlendShapeThreshold = Vector3.kEpsilon;
+        public Vector3 DeltaPosition = Vector3.back * 0.05f;
     }
 }
 
