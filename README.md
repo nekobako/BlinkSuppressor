@@ -1,6 +1,10 @@
 # Blink Suppressor
 A tool to suppress blinking for VRChat avatars.
 
+**Warning: Currently, there is a bug that causes VRChat to crash in certain worlds when wearing an avatar that uses this tool.**  
+**Please refrain from using this tool until the issue is resolved.**  
+https://feedback.vrchat.com/bug-reports/p/1680-vrchat-crash-when-using-avatars-with-extremely-large-blendshape-position-de
+
 ## Description
 Lets you suppress blinking defined in the VRC Avatar Descriptor whenever you want, while keeping the Eye Look feature working.
 
