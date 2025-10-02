@@ -1,5 +1,3 @@
-#if BS_VRCSDK3_AVATARS
-
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
@@ -416,5 +414,3 @@ namespace net.nekobako.BlinkSuppressor.Editor
         }
     }
 }
-
-#endif

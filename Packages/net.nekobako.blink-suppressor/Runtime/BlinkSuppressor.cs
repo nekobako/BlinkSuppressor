@@ -1,12 +1,10 @@
-#if BS_VRCSDK3_AVATARS
-
 using UnityEngine;
-using VRC.SDKBase;
+using nadena.dev.ndmf;
 
 namespace net.nekobako.BlinkSuppressor.Runtime
 {
     [DisallowMultipleComponent]
-    internal class BlinkSuppressor : MonoBehaviour, IEditorOnly
+    internal class BlinkSuppressor : MonoBehaviour, INDMFEditorOnly
     {
         [Header("Property to animate")]
         public bool SuppressBlink = false;
@@ -15,5 +13,3 @@ namespace net.nekobako.BlinkSuppressor.Runtime
         public float BlendShapeThreshold = Vector3.kEpsilon;
     }
 }
-
-#endif
