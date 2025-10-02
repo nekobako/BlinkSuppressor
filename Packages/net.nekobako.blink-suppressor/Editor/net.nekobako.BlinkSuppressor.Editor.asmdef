@@ -2,10 +2,10 @@
     "name": "net.nekobako.BlinkSuppressor.Editor",
     "rootNamespace": "",
     "references": [
-        "net.nekobako.BlinkSuppressor.Runtime",
+        "Unity.Collections",
         "nadena.dev.ndmf",
         "nadena.dev.ndmf.vrchat",
-        "Unity.Collections"
+        "net.nekobako.BlinkSuppressor.Runtime"
     ],
     "includePlatforms": [
         "Editor"
