@@ -2,7 +2,7 @@
   "name": "net.nekobako.blink-suppressor",
   "version": "0.0.1",
   "displayName": "Blink Suppressor",
-  "description": "A tool to suppress blinking for VRChat avatars",
+  "description": "A non-destructive tool to suppress blinking for VRChat avatars",
   "unity": "2022.3",
   "author": {
     "name": "nekobako",
