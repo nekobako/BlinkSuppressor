@@ -1,0 +1,18 @@
+msgid ""
+msgstr ""
+"Language: ja-jp\n"
+
+msgid "locale:ja-jp"
+msgstr "日本語"
+
+msgid "property-to-animate"
+msgstr "アニメーションさせるプロパティー"
+
+msgid "suppress-blink"
+msgstr "まばたきを抑制"
+
+msgid "setting"
+msgstr "設定"
+
+msgid "blend-shape-threshold"
+msgstr "ブレンドシェイプの閾値"

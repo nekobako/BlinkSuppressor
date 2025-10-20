@@ -1,0 +1,18 @@
+msgid ""
+msgstr ""
+"Language: en-us\n"
+
+msgid "locale:en-us"
+msgstr "English"
+
+msgid "property-to-animate"
+msgstr "Property To Animate"
+
+msgid "suppress-blink"
+msgstr "Suppress Blink"
+
+msgid "setting"
+msgstr "Setting"
+
+msgid "blend-shape-threshold"
+msgstr "Blend Shape Threshold"
