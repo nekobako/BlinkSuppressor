@@ -5,7 +5,8 @@
         "Unity.Collections",
         "nadena.dev.ndmf",
         "nadena.dev.ndmf.vrchat",
-        "net.nekobako.BlinkSuppressor.Runtime"
+        "net.nekobako.BlinkSuppressor.Runtime",
+        "net.nekobako.BlinkSuppressor.Localization"
     ],
     "includePlatforms": [
         "Editor"
