@@ -1,6 +1,6 @@
 {
   "name": "net.nekobako.blink-suppressor",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "displayName": "Blink Suppressor",
   "description": "A non-destructive tool to suppress blinking for VRChat avatars",
   "unity": "2022.3",
@@ -9,7 +9,7 @@
     "url": "https://nekobako.net"
   },
   "license": "MIT",
-  "url": "https://github.com/nekobako/BlinkSuppressor/releases/download/0.0.1/net.nekobako.blink-suppressor-0.0.1.zip",
+  "url": "https://github.com/nekobako/BlinkSuppressor/releases/download/0.1.0/net.nekobako.blink-suppressor-0.1.0.zip",
   "vpmDependencies": {
     "com.vrchat.avatars": ">=3.8.2",
     "nadena.dev.ndmf": ">=1.8.2"
