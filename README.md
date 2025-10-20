@@ -21,7 +21,7 @@ Since this is a non-destructive tool, you can always revert changes simply by re
 
 ![Inspector](https://github.com/user-attachments/assets/0f301726-2c63-42b1-a045-d873b8bd73b3)
 
-![Inspector](https://github.com/user-attachments/assets/28a15030-b588-4022-9cf4-4cc403b85def)
+![Inspector](https://github.com/user-attachments/assets/0ff80850-456b-4449-901f-08313d7ba0de)
 
 2. Animate the `Suppress Blink` property as needed.
 

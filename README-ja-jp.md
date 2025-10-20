@@ -21,9 +21,9 @@ VRC Avatar Descriptor で定義されたまばたきを、視線追従の機能�
 
 ![Inspector](https://github.com/user-attachments/assets/0f301726-2c63-42b1-a045-d873b8bd73b3)
 
-![Inspector](https://github.com/user-attachments/assets/28a15030-b588-4022-9cf4-4cc403b85def)
+![Inspector](https://github.com/user-attachments/assets/65a91b1b-5f80-4ff3-ba3f-ab1e3e113768)
 
-2. 必要に応じて `Suppress Blink` プロパティーをアニメーションします。
+2. 必要に応じて `まばたきを抑制` プロパティーをアニメーションします。
 
 ![Animation](https://github.com/user-attachments/assets/27d0acb9-76bf-4bbe-9fa3-0c6acdd176c1)
 
