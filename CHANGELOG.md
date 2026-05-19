@@ -14,9 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 ### Fixed
-- VRChat crashes in certain worlds.
 
 ### Security
+
+## [1.0.0] - 2026-05-20
+### Fixed
+- VRChat crashes in certain worlds.
 
 ## [0.1.0] - 2025-10-20
 ### Added
