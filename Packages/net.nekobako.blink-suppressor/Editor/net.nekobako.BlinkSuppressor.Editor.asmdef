@@ -15,7 +15,10 @@
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
-        "VRCSDK3A.dll"
+        "System.Collections.Immutable.dll",
+        "VRCSDK3A.dll",
+        "VRC.Dynamics.dll",
+        "VRC.SDK3.Dynamics.Constraint.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [],

@@ -6,11 +6,6 @@ VRChat アバターのための非破壊まばたき抑制ツールです。
 VRC Avatar Descriptor で定義されたまばたきを、視線追従の機能を維持したまま任意のタイミングで抑制することができます。  
 非破壊ツールなのでコンポーネントを削除するだけでいつでも元に戻すことができます。
 
-> [!CAUTION]
-> 現在、このツールを使用したアバターを特定のワールドで着用すると VRChat がクラッシュする不具合があります。  
-> 問題が解消されるまで、このツールの使用は控えてください。  
-> https://feedback.vrchat.com/bug-reports/p/1680-vrchat-crash-when-using-avatars-with-extremely-large-blendshape-position-de
-
 ## インストール
 1. [VPM Listing](https://vpm.nekobako.net) の `Add to VCC` ボタンを押してリポジトリを追加します。
 2. プロジェクトの `Manage Project` ボタンを押します。

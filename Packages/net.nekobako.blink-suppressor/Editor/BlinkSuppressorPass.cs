@@ -1,12 +1,17 @@
 #if BS_VRCSDK3_AVATARS
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
+using VRC.SDK3.Avatars.Components;
+using VRC.SDK3.Dynamics.Constraint.Components;
 using nadena.dev.ndmf;
 using nadena.dev.ndmf.animator;
 using nadena.dev.ndmf.vrchat;
+using UnityEditor.Animations;
 using Object = UnityEngine.Object;
 
 namespace net.nekobako.BlinkSuppressor.Editor
@@ -17,17 +22,17 @@ namespace net.nekobako.BlinkSuppressor.Editor
     {
         protected override void Execute(BuildContext context)
         {
-            var components = context.AvatarRootObject.GetComponentsInChildren<BlinkSuppressor>(true);
-            if (components.Length == 0)
+            var suppressors = context.AvatarRootObject.GetComponentsInChildren<BlinkSuppressor>(true);
+            if (suppressors.Length == 0)
             {
                 return;
             }
-            if (components.Length > 1)
+            if (suppressors.Length > 1)
             {
                 throw new("There are multiple BlinkSuppressor components.");
             }
 
-            var component = components[0];
+            var suppressor = suppressors[0];
             var descriptor = context.VRChatAvatarDescriptor();
             var renderer = descriptor.customEyeLookSettings.eyelidsSkinnedMesh;
             var shapes = descriptor.customEyeLookSettings.eyelidsBlendshapes;
@@ -37,6 +42,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 var meshData = new MeshData(mesh, Allocator.Temp);
                 var vertices = meshData.Vertices;
                 var boneWeights = meshData.BoneWeights;
+                var bindposes = meshData.Bindposes;
                 var subMeshes = meshData.SubMeshes;
                 var primitives = meshData.Primitives;
                 var blendShapes = meshData.BlendShapes;
@@ -53,7 +59,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
                     for (var j = 0; j < blinkBlendShapeFrame.DeltaCount; j++)
                     {
                         var blinkBlendShapeDelta = blendShapeDeltas[blinkBlendShapeFrame.DeltaIndex + j];
-                        blinkBlendShapeAffectionsPerVertex[j] |= blinkBlendShapeDelta.Position.sqrMagnitude >= component.BlendShapeThreshold * component.BlendShapeThreshold;
+                        blinkBlendShapeAffectionsPerVertex[j] |= blinkBlendShapeDelta.Position.sqrMagnitude >= suppressor.BlendShapeThreshold * suppressor.BlendShapeThreshold;
                     }
                 }
                 for (var i = 0; i < subMeshes.Length; i++)
@@ -73,10 +79,48 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 var vertexIndexMap = new int[vertices.Length];
                 var newVertexIndex = 0;
                 var newBoneWeightIndex = 0;
+                var blinkBlendShapeAffectedVertexCount = 0;
+                var blinkBlendShapeAffectedVertexIndicesPerBone = new Dictionary<int, HashSet<int>>();
                 for (var i = 0; i < vertices.Length; i++)
                 {
                     vertexIndexMap[i] = newVertexIndex;
-                    newVertexIndex += blinkBlendShapeAffectionsPerVertex[i] ? 2 : 1;
+                    newVertexIndex++;
+
+                    if (blinkBlendShapeAffectionsPerVertex[i])
+                    {
+                        blinkBlendShapeAffectedVertexCount++;
+                        newVertexIndex++;
+
+                        var vertex = vertices[i];
+                        for (var j = 0; j < vertex.BoneWeightCount; j++)
+                        {
+                            var boneWeight = boneWeights[vertex.BoneWeightIndex + j];
+                            if (boneWeight.weight > 0.0f)
+                            {
+                                if (!blinkBlendShapeAffectedVertexIndicesPerBone.TryGetValue(boneWeight.boneIndex, out var indices))
+                                {
+                                    blinkBlendShapeAffectedVertexIndicesPerBone[boneWeight.boneIndex] = indices = new();
+                                }
+                                indices.Add(i);
+                            }
+                        }
+                    }
+                }
+
+                var blinkBlendShapeAffectedVertexIndices = new HashSet<int>();
+                var blinkBlendShapeAffectedVertexBoneIndexMap = new Dictionary<int, int>();
+                foreach (var (boneIndex, vertexIndices) in blinkBlendShapeAffectedVertexIndicesPerBone.OrderByDescending(x => x.Value.Count))
+                {
+                    blinkBlendShapeAffectedVertexBoneIndexMap[boneIndex] = bindposes.Length + blinkBlendShapeAffectedVertexBoneIndexMap.Count * 2;
+
+                    foreach (var vertexIndex in vertexIndices)
+                    {
+                        blinkBlendShapeAffectedVertexIndices.Add(vertexIndex);
+                    }
+                    if (blinkBlendShapeAffectedVertexIndices.Count == blinkBlendShapeAffectedVertexCount)
+                    {
+                        break;
+                    }
                 }
 
                 var newVertices = new NativeArray<MeshData.Vertex>(newVertexIndex, Allocator.Temp);
@@ -107,15 +151,43 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 for (var i = 0; i < vertices.Length; i++)
                 {
                     var vertex = vertices[i];
-                    boneWeights.Slice(vertex.BoneWeightIndex, vertex.BoneWeightCount).CopyTo(newBoneWeightsSpan[newBoneWeightIndex..]);
-                    newBoneWeightIndex += vertex.BoneWeightCount;
-
                     if (blinkBlendShapeAffectionsPerVertex[i])
                     {
-                        vertex = vertices[i];
+                        for (var j = 0; j < vertex.BoneWeightCount; j++)
+                        {
+                            var boneWeight = boneWeights[vertex.BoneWeightIndex + j];
+                            if (blinkBlendShapeAffectedVertexBoneIndexMap.TryGetValue(boneWeight.boneIndex, out var boneIndex))
+                            {
+                                boneWeight.boneIndex = boneIndex + 0;
+                            }
+                            newBoneWeightsSpan[newBoneWeightIndex] = boneWeight;
+                            newBoneWeightIndex++;
+                        }
+                        for (var j = 0; j < vertex.BoneWeightCount; j++)
+                        {
+                            var boneWeight = boneWeights[vertex.BoneWeightIndex + j];
+                            if (blinkBlendShapeAffectedVertexBoneIndexMap.TryGetValue(boneWeight.boneIndex, out var boneIndex))
+                            {
+                                boneWeight.boneIndex = boneIndex + 1;
+                            }
+                            newBoneWeightsSpan[newBoneWeightIndex] = boneWeight;
+                            newBoneWeightIndex++;
+                        }
+                    }
+                    else
+                    {
                         boneWeights.Slice(vertex.BoneWeightIndex, vertex.BoneWeightCount).CopyTo(newBoneWeightsSpan[newBoneWeightIndex..]);
                         newBoneWeightIndex += vertex.BoneWeightCount;
                     }
+                }
+
+                var newBindposes = new NativeArray<Matrix4x4>(bindposes.Length + blinkBlendShapeAffectedVertexBoneIndexMap.Count * 2, Allocator.Temp);
+                var newBindposesSpan = newBindposes.AsSpan();
+                bindposes.CopyTo(newBindposesSpan);
+                foreach (var (srcBoneIndex, dstBoneIndex) in blinkBlendShapeAffectedVertexBoneIndexMap)
+                {
+                    newBindposesSpan[dstBoneIndex + 0] = bindposes[srcBoneIndex];
+                    newBindposesSpan[dstBoneIndex + 1] = bindposes[srcBoneIndex];
                 }
 
                 var newSubMeshes = new NativeArray<MeshData.SubMesh>(subMeshes.Length, Allocator.Temp);
@@ -166,30 +238,14 @@ namespace net.nekobako.BlinkSuppressor.Editor
                     }
                 }
 
-                var newBlendShapes = new NativeArray<MeshData.BlendShape>(blendShapes.Length + 1, Allocator.Temp);
+                var newBlendShapes = new NativeArray<MeshData.BlendShape>(blendShapes.Length, Allocator.Temp);
                 var newBlendShapesSpan = newBlendShapes.AsSpan();
-                var newBlendShapeIndex = blendShapes.Length;
-                var newBlendShapeFrameIndex = blendShapeFrames.Length;
-                var newBlendShapeDeltaIndex = blendShapeDeltas.Length;
                 blendShapes.CopyTo(newBlendShapesSpan);
-                AddBlendShape(newBlendShapes, ref newBlendShapeIndex, ref newBlendShapeFrameIndex, 3, $"BlinkSuppressor_{GUID.Generate()}");
 
-                static void AddBlendShape(Span<MeshData.BlendShape> blendShapes, ref int blendShapeIndex, ref int blendShapeFrameIndex, int blendShapeFrameCount, string blendShapeName)
-                {
-                    blendShapes[blendShapeIndex] = new()
-                    {
-                        Name = blendShapeName,
-                        FrameIndex = blendShapeFrameIndex,
-                        FrameCount = blendShapeFrameCount,
-                    };
-                    blendShapeIndex++;
-                    blendShapeFrameIndex += blendShapeFrameCount;
-                }
-
-                var newBlendShapeFrames = new NativeArray<MeshData.BlendShapeFrame>(newBlendShapeFrameIndex, Allocator.Temp);
+                var newBlendShapeFrames = new NativeArray<MeshData.BlendShapeFrame>(blendShapeFrames.Length, Allocator.Temp);
                 var newBlendShapeFramesSpan = newBlendShapeFrames.AsSpan();
-                newBlendShapeFrameIndex = 0;
-                newBlendShapeDeltaIndex = 0;
+                var newBlendShapeFrameIndex = 0;
+                var newBlendShapeDeltaIndex = 0;
                 for (var i = 0; i < blendShapeFrames.Length; i++)
                 {
                     var blendShapeFrame = blendShapeFrames[i];
@@ -198,21 +254,6 @@ namespace net.nekobako.BlinkSuppressor.Editor
                     newBlendShapeFramesSpan[newBlendShapeFrameIndex] = blendShapeFrame;
                     newBlendShapeFrameIndex++;
                     newBlendShapeDeltaIndex += blendShapeFrame.DeltaCount;
-                }
-                AddBlendShapeFrame(newBlendShapeFrames, ref newBlendShapeFrameIndex, ref newBlendShapeDeltaIndex, newVerticesSpan.Length, 50.0f);
-                AddBlendShapeFrame(newBlendShapeFrames, ref newBlendShapeFrameIndex, ref newBlendShapeDeltaIndex, newVerticesSpan.Length, BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(50.0f) + 1));
-                AddBlendShapeFrame(newBlendShapeFrames, ref newBlendShapeFrameIndex, ref newBlendShapeDeltaIndex, newVerticesSpan.Length, 100.0f);
-
-                static void AddBlendShapeFrame(Span<MeshData.BlendShapeFrame> blendShapeFrames, ref int blendShapeFrameIndex, ref int blendShapeDeltaIndex, int blendShapeDeltaCount, float weight)
-                {
-                    blendShapeFrames[blendShapeFrameIndex] = new()
-                    {
-                        Weight = weight,
-                        DeltaIndex = blendShapeDeltaIndex,
-                        DeltaCount = blendShapeDeltaCount,
-                    };
-                    blendShapeFrameIndex++;
-                    blendShapeDeltaIndex += blendShapeDeltaCount;
                 }
 
                 var newBlendShapeDeltas = new NativeArray<MeshData.BlendShapeDelta>(newBlendShapeDeltaIndex, Allocator.Temp);
@@ -239,55 +280,111 @@ namespace net.nekobako.BlinkSuppressor.Editor
                         }
                     }
                 }
-                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, blinkBlendShapeAffectionsPerVertex, Vector3.zero, Vector3.positiveInfinity);
-                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, blinkBlendShapeAffectionsPerVertex, Vector3.positiveInfinity, Vector3.zero);
-                AddBlendShapeDelta(newBlendShapeDeltas, ref newBlendShapeDeltaIndex, blinkBlendShapeAffectionsPerVertex, Vector3.positiveInfinity, Vector3.zero);
-
-                static void AddBlendShapeDelta(Span<MeshData.BlendShapeDelta> blendShapeDeltas, ref int blendShapeDeltaIndex, bool[] blinkBlendShapeAffectionsPerVertex, Vector3 positionForAffectedVertex, Vector3 positionForSuppressedVertex)
-                {
-                    foreach (var blinkBlendShapeAffection in blinkBlendShapeAffectionsPerVertex)
-                    {
-                        if (blinkBlendShapeAffection)
-                        {
-                            blendShapeDeltas[blendShapeDeltaIndex] = new() { Position = positionForAffectedVertex };
-                            blendShapeDeltaIndex++;
-                            blendShapeDeltas[blendShapeDeltaIndex] = new() { Position = positionForSuppressedVertex };
-                            blendShapeDeltaIndex++;
-                        }
-                        else
-                        {
-                            blendShapeDeltas[blendShapeDeltaIndex] = default;
-                            blendShapeDeltaIndex++;
-                        }
-                    }
-                }
 
                 meshData.Dispose();
 
-                var newMeshData = new MeshData(newVertices, newBoneWeights, newSubMeshes, newPrimitives, newBlendShapes, newBlendShapeFrames, newBlendShapeDeltas);
+                var newMeshData = new MeshData(newVertices, newBoneWeights, newBindposes, newSubMeshes, newPrimitives, newBlendShapes, newBlendShapeFrames, newBlendShapeDeltas);
                 newMeshData.ApplyTo(mesh);
 
-                renderer.sharedMesh = mesh;
-                renderer.SetBlendShapeWeight(newBlendShapes.Length - 1, 50.0f);
+                newMeshData.Dispose();
 
                 var asc = context.Extension<AnimatorServicesContext>();
-                var ecb = EditorCurveBinding.FloatCurve(asc.ObjectPathRemapper.GetVirtualPathForObject(component.transform), component.GetType(), nameof(BlinkSuppressor.SuppressBlink));
-                asc.AnimationIndex.EditClipsByBinding(new[] { ecb }, clip =>
+                var controller = asc.ControllerContext.Controllers[VRCAvatarDescriptor.AnimLayerType.FX];
+                var parameter = new AnimatorControllerParameter
                 {
-                    var curve = clip.GetFloatCurve(ecb);
-                    clip.SetFloatCurve(ecb, null);
-                    clip.SetFloatCurve(
-                        EditorCurveBinding.FloatCurve(asc.ObjectPathRemapper.GetVirtualPathForObject(renderer.transform), renderer.GetType(), $"blendShape.{newBlendShapes[^1].Name}"),
-                        new(Array.ConvertAll(curve.keys, x => { x.value = x.value < 0.5f ? 50.0f : 100.0f; return x; })));
-                    clip.SetFloatCurve(
-                        EditorCurveBinding.FloatCurve(asc.ObjectPathRemapper.GetVirtualPathForObject(renderer.transform), renderer.GetType(), "m_UpdateWhenOffscreen"),
-                        new(Array.ConvertAll(curve.keys, x => { x.value = 0.0f; return x; })));
+                    type = AnimatorControllerParameterType.Float,
+                    name = "BlinkSuppressor/SuppressBlink",
+                    defaultFloat = suppressor.SuppressBlink ? 1.0f : 0.0f,
+                };
+                controller.Parameters = controller.Parameters.SetItem(parameter.name, parameter);
+
+                var path = asc.ObjectPathRemapper.GetVirtualPathForObject(suppressor.transform);
+                var binding = EditorCurveBinding.FloatCurve(path, typeof(BlinkSuppressor), nameof(BlinkSuppressor.SuppressBlink));
+                asc.AnimationIndex.EditClipsByBinding(new[] { binding }, clip =>
+                {
+                    clip.SetFloatCurve(EditorCurveBinding.FloatCurve(string.Empty, typeof(Animator), parameter.name), clip.GetFloatCurve(binding));
+                    clip.SetFloatCurve(binding, null);
                 });
 
-                newMeshData.Dispose();
+                var layer = controller.AddLayer(LayerPriority.Default, "BlinkSuppressor");
+                layer.StateMachine.EntryPosition = new(0.0f, 0.0f);
+                layer.StateMachine.ExitPosition = new(400.0f, 0.0f);
+                layer.StateMachine.AnyStatePosition = new(0.0f, 60.0f);
+
+                var (allowBlinkState, allowBlinkClip) = AddState(layer, "Allow_Blink", new(180.0f, 0.0f), parameter, AnimatorConditionMode.Less, float.Epsilon, AnimatorConditionMode.Greater, 0.0f);
+                var (disallowBlinkState, disallowBlinkClip) = AddState(layer, "Disallow_Blink", new(180.0f, 60.0f), parameter, AnimatorConditionMode.Greater, 0.0f, AnimatorConditionMode.Less, float.Epsilon);
+                layer.StateMachine.DefaultState = suppressor.SuppressBlink ? disallowBlinkState : allowBlinkState;
+
+                static (VirtualState, VirtualClip) AddState(VirtualLayer layer, string name, Vector3 position, AnimatorControllerParameter parameter, AnimatorConditionMode entryMode, float entryThreshold, AnimatorConditionMode exitMode, float exitThreshold)
+                {
+                    var clip = VirtualClip.Create(name);
+                    var state = layer.StateMachine.AddState(name, clip, position);
+                    var entryTransition = VirtualTransition.Create();
+                    entryTransition.SetDestination(state);
+                    entryTransition.Conditions = entryTransition.Conditions.Add(new() { parameter = parameter.name, mode = entryMode, threshold = entryThreshold });
+                    layer.StateMachine.EntryTransitions = layer.StateMachine.EntryTransitions.Add(entryTransition);
+                    var exitTransition = VirtualStateTransition.Create();
+                    exitTransition.SetExitDestination();
+                    exitTransition.Conditions = exitTransition.Conditions.Add(new() { parameter = parameter.name, mode = exitMode, threshold = exitThreshold });
+                    exitTransition.Duration = 0.0f;
+                    exitTransition.ExitTime = null;
+                    state.Transitions = state.Transitions.Add(exitTransition);
+                    return (state, clip);
+                }
+
+                var bones = renderer.bones;
+                Array.Resize(ref bones, newBindposes.Length);
+
+                foreach (var (srcBoneIndex, dstBoneIndex) in blinkBlendShapeAffectedVertexBoneIndexMap)
+                {
+                    bones[dstBoneIndex + 0] = new GameObject($"Allow_Blink_{bones[srcBoneIndex].name}_{GUID.Generate()}").transform;
+                    bones[dstBoneIndex + 1] = new GameObject($"Disallow_Blink_{bones[srcBoneIndex].name}_{GUID.Generate()}").transform;
+                    bones[dstBoneIndex + 0].SetParent(bones[srcBoneIndex], false);
+                    bones[dstBoneIndex + 1].SetParent(bones[srcBoneIndex], false);
+
+                    // Inactivate GameObjects before adding VRCScaleConstraint so that VRCScaleConstraint.TargetTransform works fine in Play Mode
+                    bones[dstBoneIndex + 0].gameObject.SetActive(false);
+                    bones[dstBoneIndex + 1].gameObject.SetActive(false);
+
+                    AddScaleConstraint(bones[dstBoneIndex + 0], bones[dstBoneIndex + 0], 1.0f);
+                    AddScaleConstraint(bones[dstBoneIndex + 0], bones[dstBoneIndex + 1], float.NaN);
+                    AddScaleConstraint(bones[dstBoneIndex + 1], bones[dstBoneIndex + 0], float.NaN);
+                    AddScaleConstraint(bones[dstBoneIndex + 1], bones[dstBoneIndex + 1], 1.0f);
+
+                    static void AddScaleConstraint(Transform transform, Transform target, float weight)
+                    {
+                        var constraint = transform.gameObject.AddComponent<VRCScaleConstraint>();
+                        constraint.TargetTransform = target;
+                        constraint.Sources.Add(new(target.parent, weight));
+                        constraint.Locked = true;
+                        constraint.IsActive = true;
+                    }
+
+                    // Activate GameObjects after adding VRCScaleConstraint so that VRCScaleConstraint.TargetTransform works fine in Play Mode
+                    bones[dstBoneIndex + 0].gameObject.SetActive(!suppressor.SuppressBlink);
+                    bones[dstBoneIndex + 1].gameObject.SetActive(suppressor.SuppressBlink);
+
+                    var rendererPath = asc.ObjectPathRemapper.GetVirtualPathForObject(renderer.transform);
+                    var allowBlinkBonePath = asc.ObjectPathRemapper.GetVirtualPathForObject(bones[dstBoneIndex + 0].transform);
+                    var disallowBlinkBonePath = asc.ObjectPathRemapper.GetVirtualPathForObject(bones[dstBoneIndex + 1].transform);
+                    var rendererBinding = EditorCurveBinding.FloatCurve(rendererPath, typeof(SkinnedMeshRenderer), "m_UpdateWhenOffscreen");
+                    var allowBlinkBoneBinding = EditorCurveBinding.FloatCurve(allowBlinkBonePath, typeof(GameObject), "m_IsActive");
+                    var disallowBlinkBoneBinding = EditorCurveBinding.FloatCurve(disallowBlinkBonePath, typeof(GameObject), "m_IsActive");
+                    var trueCurve = AnimationCurve.Constant(0.0f, 0.0f, 1.0f);
+                    var falseCurve = AnimationCurve.Constant(0.0f, 0.0f, 0.0f);
+                    allowBlinkClip.SetFloatCurve(rendererBinding, falseCurve);
+                    allowBlinkClip.SetFloatCurve(allowBlinkBoneBinding, trueCurve);
+                    allowBlinkClip.SetFloatCurve(disallowBlinkBoneBinding, falseCurve);
+                    disallowBlinkClip.SetFloatCurve(rendererBinding, falseCurve);
+                    disallowBlinkClip.SetFloatCurve(allowBlinkBoneBinding, falseCurve);
+                    disallowBlinkClip.SetFloatCurve(disallowBlinkBoneBinding, trueCurve);
+                }
+
+                renderer.sharedMesh = mesh;
+                renderer.bones = bones;
             }
 
-            Object.DestroyImmediate(component);
+            Object.DestroyImmediate(suppressor);
         }
     }
 }

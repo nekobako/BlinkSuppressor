@@ -6,11 +6,6 @@ A non-destructive tool to suppress blinking for VRChat avatars.
 You can suppress blinking defined in the VRC Avatar Descriptor whenever you want, while keeping the Eye Look feature working.  
 Since this is a non-destructive tool, you can always revert changes simply by removing the component.
 
-> [!CAUTION]
-> Currently, there is a bug that causes VRChat to crash in certain worlds when wearing an avatar that uses this tool.  
-> Please refrain from using this tool until the issue is resolved.  
-> https://feedback.vrchat.com/bug-reports/p/1680-vrchat-crash-when-using-avatars-with-extremely-large-blendshape-position-de
-
 ## Installation
 1. Press `Add to VCC` button in [VPM Listing](https://vpm.nekobako.net) and add the repository.
 2. Press `Manage Project` button at your project.

@@ -65,6 +65,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
 
         public ReadOnlySpan<Vertex> Vertices => m_Vertices;
         public ReadOnlySpan<BoneWeight1> BoneWeights => m_BoneWeights;
+        public ReadOnlySpan<Matrix4x4> Bindposes => m_Bindposes;
         public ReadOnlySpan<SubMesh> SubMeshes => m_SubMeshes;
         public ReadOnlySpan<Primitive> Primitives => m_Primitives;
         public ReadOnlySpan<BlendShape> BlendShapes => m_BlendShapes;
@@ -73,6 +74,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
 
         private NativeArray<Vertex> m_Vertices;
         private NativeArray<BoneWeight1> m_BoneWeights;
+        private NativeArray<Matrix4x4> m_Bindposes;
         private NativeArray<SubMesh> m_SubMeshes;
         private NativeArray<Primitive> m_Primitives;
         private NativeArray<BlendShape> m_BlendShapes;
@@ -84,14 +86,16 @@ namespace net.nekobako.BlinkSuppressor.Editor
         public MeshData(Mesh mesh, Allocator allocator)
         {
             ReadVertices(mesh, allocator);
+            ReadBones(mesh, allocator);
             ReadSubMeshes(mesh, allocator);
             ReadBlendShapes(mesh, allocator);
         }
 
-        public MeshData(NativeArray<Vertex> vertices, NativeArray<BoneWeight1> boneWeights, NativeArray<SubMesh> subMeshes, NativeArray<Primitive> primitives, NativeArray<BlendShape> blendShapes, NativeArray<BlendShapeFrame> blendShapeFrames, NativeArray<BlendShapeDelta> blendShapeDeltas)
+        public MeshData(NativeArray<Vertex> vertices, NativeArray<BoneWeight1> boneWeights, NativeArray<Matrix4x4> bindposes, NativeArray<SubMesh> subMeshes, NativeArray<Primitive> primitives, NativeArray<BlendShape> blendShapes, NativeArray<BlendShapeFrame> blendShapeFrames, NativeArray<BlendShapeDelta> blendShapeDeltas)
         {
             m_Vertices = vertices;
             m_BoneWeights = boneWeights;
+            m_Bindposes = bindposes;
             m_SubMeshes = subMeshes;
             m_Primitives = primitives;
             m_BlendShapes = blendShapes;
@@ -157,6 +161,11 @@ namespace net.nekobako.BlinkSuppressor.Editor
             }
 
             m_BoneWeights = new(mesh.GetAllBoneWeights(), allocator);
+        }
+
+        private void ReadBones(Mesh mesh, Allocator allocator)
+        {
+            m_Bindposes = new(mesh.bindposes, allocator);
         }
 
         private void ReadSubMeshes(Mesh mesh, Allocator allocator)
@@ -273,6 +282,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
         {
             mesh.Clear();
             WriteVertices(mesh);
+            WriteBones(mesh);
             WriteSubMeshes(mesh);
             WriteBlendShapes(mesh);
         }
@@ -338,6 +348,11 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 mesh.SetBoneWeights(boneWeightCounts, m_BoneWeights);
                 boneWeightCounts.Dispose();
             }
+        }
+
+        private void WriteBones(Mesh mesh)
+        {
+            mesh.bindposes = m_Bindposes.ToArray();
         }
 
         private void WriteSubMeshes(Mesh mesh)
@@ -406,6 +421,7 @@ namespace net.nekobako.BlinkSuppressor.Editor
         {
             m_Vertices.Dispose();
             m_BoneWeights.Dispose();
+            m_Bindposes.Dispose();
             m_SubMeshes.Dispose();
             m_Primitives.Dispose();
             m_BlendShapes.Dispose();
