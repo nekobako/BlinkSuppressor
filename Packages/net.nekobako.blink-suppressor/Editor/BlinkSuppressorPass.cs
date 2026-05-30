@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Dynamics.Constraint.Components;
+using VRC.SDK3.Dynamics.PhysBone.Components;
 using nadena.dev.ndmf;
 using nadena.dev.ndmf.animator;
 using nadena.dev.ndmf.vrchat;
@@ -335,12 +336,23 @@ namespace net.nekobako.BlinkSuppressor.Editor
                 var bones = renderer.bones;
                 Array.Resize(ref bones, newBindposes.Length);
 
+                var physBones = context.AvatarRootObject.GetComponentsInChildren<VRCPhysBone>(true);
+
                 foreach (var (srcBoneIndex, dstBoneIndex) in blinkBlendShapeAffectedVertexBoneIndexMap)
                 {
                     bones[dstBoneIndex + 0] = new GameObject($"Allow_Blink_{bones[srcBoneIndex].name}_{GUID.Generate()}").transform;
                     bones[dstBoneIndex + 1] = new GameObject($"Disallow_Blink_{bones[srcBoneIndex].name}_{GUID.Generate()}").transform;
                     bones[dstBoneIndex + 0].SetParent(bones[srcBoneIndex], false);
                     bones[dstBoneIndex + 1].SetParent(bones[srcBoneIndex], false);
+
+                    foreach (var physBone in physBones)
+                    {
+                        if (bones[srcBoneIndex].IsChildOf(physBone.GetRootTransform()))
+                        {
+                            physBone.ignoreTransforms.Add(bones[dstBoneIndex + 0]);
+                            physBone.ignoreTransforms.Add(bones[dstBoneIndex + 1]);
+                        }
+                    }
 
                     // Inactivate GameObjects before adding VRCScaleConstraint so that VRCScaleConstraint.TargetTransform works fine in Play Mode
                     bones[dstBoneIndex + 0].gameObject.SetActive(false);

@@ -18,7 +18,8 @@
         "System.Collections.Immutable.dll",
         "VRCSDK3A.dll",
         "VRC.Dynamics.dll",
-        "VRC.SDK3.Dynamics.Constraint.dll"
+        "VRC.SDK3.Dynamics.Constraint.dll",
+        "VRC.SDK3.Dynamics.PhysBone.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [],
