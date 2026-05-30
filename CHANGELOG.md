@@ -14,9 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 ### Fixed
-- NaNimation bones affected VRCPhysBone.
 
 ### Security
+
+## [1.0.1] - 2026-05-30
+### Fixed
+- NaNimation bones affected VRCPhysBone.
 
 ## [1.0.0] - 2026-05-20
 ### Fixed
