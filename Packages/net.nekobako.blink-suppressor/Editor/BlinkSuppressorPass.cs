@@ -307,31 +307,21 @@ namespace net.nekobako.BlinkSuppressor.Editor
                     clip.SetFloatCurve(binding, null);
                 });
 
+                var allowBlinkClip = VirtualClip.Create("Allow_Blink");
+                var disallowBlinkClip = VirtualClip.Create("Disallow_Blink");
+
+                var blendTree = VirtualBlendTree.Create("BlinkSuppressor");
+                blendTree.BlendType = BlendTreeType.Simple1D;
+                blendTree.BlendParameter = parameter.name;
+                blendTree.UseAutomaticThresholds = false;
+                blendTree.Children = blendTree.Children.Add(new() { Motion = allowBlinkClip, Threshold = 0.0f });
+                blendTree.Children = blendTree.Children.Add(new() { Motion = disallowBlinkClip, Threshold = float.Epsilon });
+
                 var layer = controller.AddLayer(LayerPriority.Default, "BlinkSuppressor");
                 layer.StateMachine.EntryPosition = new(0.0f, 0.0f);
                 layer.StateMachine.ExitPosition = new(400.0f, 0.0f);
                 layer.StateMachine.AnyStatePosition = new(0.0f, 60.0f);
-
-                var (allowBlinkState, allowBlinkClip) = AddState(layer, "Allow_Blink", new(180.0f, 0.0f), parameter, AnimatorConditionMode.Less, float.Epsilon, AnimatorConditionMode.Greater, 0.0f);
-                var (disallowBlinkState, disallowBlinkClip) = AddState(layer, "Disallow_Blink", new(180.0f, 60.0f), parameter, AnimatorConditionMode.Greater, 0.0f, AnimatorConditionMode.Less, float.Epsilon);
-                layer.StateMachine.DefaultState = suppressor.SuppressBlink ? disallowBlinkState : allowBlinkState;
-
-                static (VirtualState, VirtualClip) AddState(VirtualLayer layer, string name, Vector3 position, AnimatorControllerParameter parameter, AnimatorConditionMode entryMode, float entryThreshold, AnimatorConditionMode exitMode, float exitThreshold)
-                {
-                    var clip = VirtualClip.Create(name);
-                    var state = layer.StateMachine.AddState(name, clip, position);
-                    var entryTransition = VirtualTransition.Create();
-                    entryTransition.SetDestination(state);
-                    entryTransition.Conditions = entryTransition.Conditions.Add(new() { parameter = parameter.name, mode = entryMode, threshold = entryThreshold });
-                    layer.StateMachine.EntryTransitions = layer.StateMachine.EntryTransitions.Add(entryTransition);
-                    var exitTransition = VirtualStateTransition.Create();
-                    exitTransition.SetExitDestination();
-                    exitTransition.Conditions = exitTransition.Conditions.Add(new() { parameter = parameter.name, mode = exitMode, threshold = exitThreshold });
-                    exitTransition.Duration = 0.0f;
-                    exitTransition.ExitTime = null;
-                    state.Transitions = state.Transitions.Add(exitTransition);
-                    return (state, clip);
-                }
+                layer.StateMachine.AddState("BlinkSuppressor", blendTree, new(180.0f, 0.0f));
 
                 var bones = renderer.bones;
                 Array.Resize(ref bones, newBindposes.Length);
